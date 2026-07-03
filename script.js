@@ -4,6 +4,24 @@ const taskInput = document.getElementById('task-input');
 const taskList = document.getElementById('task-list');
 const emptyMessage = document.getElementById('empty-message');
 const taskCounter = document.getElementById('task-counter');
+const themeToggle = document.getElementById('theme-toggle');
+
+// Apply the given theme ('light' or 'dark') and remember the choice
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('theme', theme);
+}
+
+// Use the saved theme if there is one, otherwise fall back to the OS preference
+const savedTheme = localStorage.getItem('theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+themeToggle.addEventListener('click', () => {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  setTheme(isDark ? 'light' : 'dark');
+});
 
 // Show or hide the "nothing here yet" message based on whether there are tasks
 function updateEmptyMessage() {
