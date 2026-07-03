@@ -41,12 +41,23 @@ function updateTaskCounter() {
   taskCounter.textContent = `${active} active · ${completed} done`;
 }
 
+// Read the current tasks out of the DOM and save them to localStorage
+function saveTasks() {
+  const tasks = [...taskList.querySelectorAll('li')].map((li) => ({
+    text: li.querySelector('span').textContent,
+    completed: li.classList.contains('completed'),
+  }));
+  localStorage.setItem('tasks', JSON.stringify(tasks));
+}
+
 // Create a single <li> element for a task
-function createTaskElement(text) {
+function createTaskElement(text, completed = false) {
   const li = document.createElement('li');
+  li.classList.toggle('completed', completed);
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
+  checkbox.checked = completed;
 
   const span = document.createElement('span');
   span.textContent = text;
@@ -58,6 +69,7 @@ function createTaskElement(text) {
   checkbox.addEventListener('change', () => {
     li.classList.toggle('completed', checkbox.checked);
     updateTaskCounter();
+    saveTasks();
   });
 
   // Remove this task when Delete is clicked
@@ -65,6 +77,7 @@ function createTaskElement(text) {
     li.remove();
     updateEmptyMessage();
     updateTaskCounter();
+    saveTasks();
   });
 
   li.appendChild(checkbox);
@@ -89,8 +102,24 @@ taskForm.addEventListener('submit', (event) => {
 
   updateEmptyMessage();
   updateTaskCounter();
+  saveTasks();
 });
 
+// Load any previously saved tasks from localStorage, if present
+function loadTasks() {
+  let tasks = [];
+  try {
+    tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+  } catch {
+    tasks = [];
+  }
+
+  tasks.forEach((task) => {
+    taskList.appendChild(createTaskElement(task.text, task.completed));
+  });
+}
+
 // Set the correct initial state when the page loads
+loadTasks();
 updateEmptyMessage();
 updateTaskCounter();
