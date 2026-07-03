@@ -19,8 +19,21 @@
 
     <form id="task-form">
       <input type="text" id="task-input" placeholder="What do you need to do?" autocomplete="off">
+      <input type="date" id="task-due-input" aria-label="Due date (optional)">
       <button type="submit">Add</button>
     </form>
+
+    <div class="filter-tabs" id="filter-tabs">
+      <button type="button" class="filter-btn active" data-filter="all">All</button>
+      <button type="button" class="filter-btn" data-filter="active">Active</button>
+      <button type="button" class="filter-btn" data-filter="done">Done</button>
+    </div>
+
+    <div class="sort-headers" id="sort-headers">
+      <button type="button" class="sort-header" data-field="dateEntered">Date Entered<span class="sort-arrow"></span></button>
+      <button type="button" class="sort-header" data-field="text">Task<span class="sort-arrow"></span></button>
+      <button type="button" class="sort-header" data-field="dueDate">Due Date<span class="sort-arrow"></span></button>
+    </div>
 
     <ul id="task-list"></ul>
 

@@ -1,10 +1,13 @@
 // Grab references to the elements we'll need to work with
 const taskForm = document.getElementById('task-form');
 const taskInput = document.getElementById('task-input');
+const taskDueInput = document.getElementById('task-due-input');
 const taskList = document.getElementById('task-list');
 const emptyMessage = document.getElementById('empty-message');
 const taskCounter = document.getElementById('task-counter');
 const themeToggle = document.getElementById('theme-toggle');
+const filterButtons = document.querySelectorAll('.filter-btn');
+const sortHeaders = document.querySelectorAll('.sort-header');
 
 // Apply the given theme ('light' or 'dark') and remember the choice
 function setTheme(theme) {
@@ -23,68 +26,165 @@ themeToggle.addEventListener('click', () => {
   setTheme(isDark ? 'light' : 'dark');
 });
 
-// Show or hide the "nothing here yet" message based on whether there are tasks
-function updateEmptyMessage() {
-  const hasTasks = taskList.children.length > 0;
-  emptyMessage.classList.toggle('hidden', hasTasks);
+// The tasks array is the source of truth; the list is re-rendered from it
+let tasks = [];
+let filterState = 'all'; // 'all' | 'active' | 'done'
+let sortState = { field: null, direction: 'asc' }; // field: 'dateEntered' | 'text' | 'dueDate'
+
+// Today's date as 'YYYY-MM-DD', for comparing against due dates
+function todayString() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-// Count active vs. completed tasks and update the counter display
+// A task is overdue if it has a due date earlier than today and isn't done
+function isOverdue(task) {
+  return !task.completed && !!task.dueDate && task.dueDate < todayString();
+}
+
+// Format a 'YYYY-MM-DD' due date as something like "Jul 10"
+function formatDueDate(dueDate) {
+  const [year, month, day] = dueDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// Compare two tasks by a given field; used for sorting
+function compareTasks(a, b, field) {
+  if (field === 'text') {
+    return a.text.localeCompare(b.text, undefined, { sensitivity: 'base' });
+  }
+  if (field === 'dateEntered') {
+    return a.dateEntered.localeCompare(b.dateEntered);
+  }
+  if (field === 'dueDate') {
+    return a.dueDate.localeCompare(b.dueDate);
+  }
+  return 0;
+}
+
+// Apply the current filter and sort to the tasks array
+function getVisibleTasks() {
+  const filtered = tasks.filter((task) => {
+    if (filterState === 'active') return !task.completed;
+    if (filterState === 'done') return task.completed;
+    return true;
+  });
+
+  if (!sortState.field) return filtered;
+
+  return filtered.sort((a, b) => {
+    // Tasks with no due date always sort last, regardless of direction
+    if (sortState.field === 'dueDate') {
+      const aHas = !!a.dueDate;
+      const bHas = !!b.dueDate;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      if (!aHas) return 0;
+    }
+
+    const cmp = compareTasks(a, b, sortState.field);
+    return sortState.direction === 'asc' ? cmp : -cmp;
+  });
+}
+
+// Show or hide the "nothing here yet" message based on the visible list
+function updateEmptyMessage(visibleCount) {
+  const isEmpty = visibleCount === 0;
+  emptyMessage.classList.toggle('hidden', !isEmpty);
+  if (isEmpty) {
+    emptyMessage.textContent = tasks.length === 0
+      ? 'Nothing here yet — add your first task above.'
+      : 'No tasks match this filter.';
+  }
+}
+
+// Count active vs. completed tasks (across all tasks, ignoring the filter)
 function updateTaskCounter() {
-  const allTasks = taskList.querySelectorAll('li');
-  const completedTasks = taskList.querySelectorAll('li.completed');
- 
-  const total = allTasks.length;
-  const completed = completedTasks.length;
+  const total = tasks.length;
+  const completed = tasks.filter((task) => task.completed).length;
   const active = total - completed;
- 
+
   taskCounter.textContent = `${active} active · ${completed} done`;
 }
 
-// Read the current tasks out of the DOM and save them to localStorage
+// Reflect the current sort field/direction on the header buttons
+function updateSortHeaders() {
+  sortHeaders.forEach((btn) => {
+    const isActive = sortState.field === btn.dataset.field;
+    btn.classList.toggle('active', isActive);
+    btn.querySelector('.sort-arrow').textContent = isActive
+      ? (sortState.direction === 'asc' ? '↑' : '↓')
+      : '';
+  });
+}
+
+// Save the current tasks to localStorage
 function saveTasks() {
-  const tasks = [...taskList.querySelectorAll('li')].map((li) => ({
-    text: li.querySelector('span').textContent,
-    completed: li.classList.contains('completed'),
-  }));
   localStorage.setItem('tasks', JSON.stringify(tasks));
 }
 
 // Create a single <li> element for a task
-function createTaskElement(text, completed = false) {
+function buildTaskElement(task) {
   const li = document.createElement('li');
-  li.classList.toggle('completed', completed);
+  li.classList.toggle('completed', task.completed);
+  li.classList.toggle('overdue', isOverdue(task));
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.checked = completed;
+  checkbox.checked = task.completed;
+
+  const content = document.createElement('div');
+  content.className = 'task-content';
 
   const span = document.createElement('span');
-  span.textContent = text;
+  span.className = 'task-text';
+  span.textContent = task.text;
+  content.appendChild(span);
+
+  if (task.dueDate) {
+    const dueEl = document.createElement('span');
+    dueEl.className = 'task-due';
+    dueEl.textContent = `Due: ${formatDueDate(task.dueDate)}`;
+    content.appendChild(dueEl);
+  }
 
   const deleteBtn = document.createElement('button');
   deleteBtn.textContent = 'Delete';
 
   // Toggle the "completed" look when the checkbox is clicked
   checkbox.addEventListener('change', () => {
-    li.classList.toggle('completed', checkbox.checked);
-    updateTaskCounter();
+    task.completed = checkbox.checked;
     saveTasks();
+    render();
   });
 
   // Remove this task when Delete is clicked
   deleteBtn.addEventListener('click', () => {
-    li.remove();
-    updateEmptyMessage();
-    updateTaskCounter();
+    tasks = tasks.filter((t) => t !== task);
     saveTasks();
+    render();
   });
 
   li.appendChild(checkbox);
-  li.appendChild(span);
+  li.appendChild(content);
   li.appendChild(deleteBtn);
 
   return li;
+}
+
+// Rebuild the task list in the DOM from the current tasks/filter/sort state
+function render() {
+  const visible = getVisibleTasks();
+
+  taskList.innerHTML = '';
+  visible.forEach((task) => taskList.appendChild(buildTaskElement(task)));
+
+  updateEmptyMessage(visible.length);
+  updateTaskCounter();
+  updateSortHeaders();
 }
 
 // Handle the form submission (adding a new task)
@@ -94,32 +194,63 @@ taskForm.addEventListener('submit', (event) => {
   const text = taskInput.value.trim();
   if (text === '') return; // ignore empty submissions
 
-  const taskElement = createTaskElement(text);
-  taskList.appendChild(taskElement);
+  tasks.push({
+    text,
+    completed: false,
+    dateEntered: new Date().toISOString(),
+    dueDate: taskDueInput.value || null,
+  });
 
-  taskInput.value = ''; // clear the input for the next task
+  taskInput.value = ''; // clear the inputs for the next task
+  taskDueInput.value = '';
   taskInput.focus();
 
-  updateEmptyMessage();
-  updateTaskCounter();
   saveTasks();
+  render();
+});
+
+// Switch the active filter tab
+filterButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    filterState = btn.dataset.filter;
+    filterButtons.forEach((b) => b.classList.toggle('active', b === btn));
+    render();
+  });
+});
+
+// Sort by the clicked column, toggling direction if it's already active
+sortHeaders.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const field = btn.dataset.field;
+    if (sortState.field === field) {
+      sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortState.field = field;
+      sortState.direction = 'asc';
+    }
+    render();
+  });
 });
 
 // Load any previously saved tasks from localStorage, if present
 function loadTasks() {
-  let tasks = [];
+  let stored = [];
   try {
-    tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    const parsed = JSON.parse(localStorage.getItem('tasks'));
+    stored = Array.isArray(parsed) ? parsed : [];
   } catch {
-    tasks = [];
+    stored = [];
   }
 
-  tasks.forEach((task) => {
-    taskList.appendChild(createTaskElement(task.text, task.completed));
-  });
+  // Normalize older saved tasks that predate due dates / entry dates
+  tasks = stored.map((task) => ({
+    text: task.text,
+    completed: !!task.completed,
+    dateEntered: task.dateEntered || new Date().toISOString(),
+    dueDate: task.dueDate || null,
+  }));
 }
 
 // Set the correct initial state when the page loads
 loadTasks();
-updateEmptyMessage();
-updateTaskCounter();
+render();
