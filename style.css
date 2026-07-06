@@ -212,7 +212,7 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border-light);
 }
 
@@ -224,6 +224,7 @@ h1 {
   border: 1px solid var(--overdue-border);
   background: var(--overdue-bg);
   border-radius: 8px;
+  padding: 10px 12px;
   margin: 6px 0;
 }
 
