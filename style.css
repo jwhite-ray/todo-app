@@ -80,6 +80,16 @@ h1 {
   white-space: nowrap;
 }
 
+.weather {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.weather:empty {
+  display: none;
+}
+
 #theme-toggle {
   border: 1px solid var(--border);
   background: var(--card-bg);

@@ -8,6 +8,43 @@ const taskCounter = document.getElementById('task-counter');
 const themeToggle = document.getElementById('theme-toggle');
 const filterButtons = document.querySelectorAll('.filter-btn');
 const sortHeaders = document.querySelectorAll('.sort-header');
+const weatherEl = document.getElementById('weather');
+
+// Maps Open-Meteo's WMO weather codes to a simple icon
+// See https://open-meteo.com/en/docs for the full code list
+const WEATHER_ICONS = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️',
+  45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌦️',
+  61: '🌧️', 63: '🌧️', 65: '🌧️',
+  71: '🌨️', 73: '🌨️', 75: '🌨️',
+  80: '🌦️', 81: '🌧️', 82: '🌧️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️',
+};
+
+// Fetch and display the current temperature/conditions for the given coordinates
+async function loadWeather(latitude, longitude) {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('weather request failed');
+
+    const data = await response.json();
+    const temp = Math.round(data.current.temperature_2m);
+    const icon = WEATHER_ICONS[data.current.weather_code] || '🌡️';
+    weatherEl.textContent = `${icon} ${temp}°F`;
+  } catch {
+    weatherEl.textContent = '';
+  }
+}
+
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    (position) => loadWeather(position.coords.latitude, position.coords.longitude),
+    () => { weatherEl.textContent = ''; },
+    { timeout: 8000 }
+  );
+}
 
 // Apply the given theme ('light' or 'dark') and remember the choice
 function setTheme(theme) {
